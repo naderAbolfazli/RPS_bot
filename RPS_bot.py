@@ -15,8 +15,8 @@ bot.
 import logging
 import random
 
-from telegram import (ReplyKeyboardMarkup, Bot)
-from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
+from telegram import (ReplyKeyboardMarkup, Bot, Update)
+from telegram.ext import (Updater, CommandHandler, RegexHandler,
                           ConversationHandler)
 
 # Enable logging
@@ -27,14 +27,14 @@ logger = logging.getLogger()
 
 ROUND_STATS, ROUND_NUMBER = range(2)
 
+
 # waited_players = {}
-round = 0
-number_of_rounds = 5
-user_win = 0
-bot_win = 0
 
 
-def start(bot: Bot, update):
+def start(bot: Bot, update: Update, user_data):
+    user_data['round'] = 0
+    user_data['user_win'] = 0
+    user_data['bot_win'] = 0
     update.message.reply_text("welcome to rps.\nwhat number of rounds do you want to play")
     # if waited_players.__len__():
     return ROUND_NUMBER
@@ -42,18 +42,16 @@ def start(bot: Bot, update):
     #     waited_players[update.message.chat_id] = (bot, update)
 
 
-def round_number(bot, update):
-    global number_of_rounds
-    number_of_rounds = int(update.message.text)
-    return start_round(bot, update)
+def round_number(bot, update, user_data):
+    user_data['number_of_rounds'] = int(update.message.text)
+    return start_round(bot, update, user_data)
 
 
-def start_round(bot, update):
-    global round
-    round += 1
+def start_round(bot, update, user_data):
+    user_data['round'] += 1
     reply_keyboard = [['Rock', 'Paper', 'Scissor']]
-    logger.info("start round")
-    update.message.reply_text("opponent ready, select one of the below for round *{}*".format(round),
+    logger.info("round started")
+    update.message.reply_text("opponent ready, select one of the below for round *{}*".format(user_data['round']),
                               reply_markup=ReplyKeyboardMarkup(keyboard=reply_keyboard))
     return ROUND_STATS
 
@@ -84,34 +82,35 @@ def get_win_or_lose(r_stat):
     }[r_stat]
 
 
-def r_stat_calculation(r_stat):
-    global user_win, bot_win
+def r_stat_calculation(r_stat, user_data):
     if r_stat == 1:
-        user_win += 1
+        user_data['user_win'] += 1
     if r_stat == -1:
-        bot_win += 1
+        user_data['bot_win'] += 1
 
 
-def round_stats(bot, update):
-    if round == number_of_rounds:
-        return game_stats(bot, update)
+def round_stats(bot, update, user_data):
     player_choice = update.message.text
     bot_choice = get_bot_random_choose()
     r_stat = round_judgment(player_choice, bot_choice)
-    r_stat_calculation(r_stat)
+    r_stat_calculation(r_stat, user_data)
     logger.info("waiting for next round")
-    update.message.reply_text('bot selected *{}*\n you *{}* round {}  '.format(bot_choice, get_win_or_lose(r_stat), round))
-    start_round(bot, update)
+    update.message.reply_text(
+        'bot selected *{}*\n you *{}* round {}  '.format(bot_choice, get_win_or_lose(r_stat), user_data['round']))
+
+    if user_data['round'] == user_data['number_of_rounds']:
+        return game_stats(bot, update, user_data)
+    else:
+        start_round(bot, update, user_data)
 
 
-def game_stats(bot, update):
-    result = "Tie"
-    if user_win > bot_win:
+def game_stats(bot, update, user_data):
+    if user_data['user_win'] > user_data['bot_win']:
         result = "WIN"
-    elif user_win < bot_win:
+    elif user_data['user_win'] < user_data['bot_win']:
         result = "LOSE"
-    elif user_win == bot_win:
-        result = "TIE"
+    else:
+        result = "Tie"
 
     update.message.reply_text('You *{}*'.format(result))
     return ConversationHandler.END
@@ -142,11 +141,11 @@ def main():
 
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[CommandHandler('start', start, pass_user_data=True)],
 
         states={
-            ROUND_STATS: [RegexHandler(pattern='^(Rock|Paper|Scissor)$', callback=round_stats)],
-            ROUND_NUMBER: [RegexHandler(pattern='^\d+$', callback=round_number)],
+            ROUND_STATS: [RegexHandler(pattern='^(Rock|Paper|Scissor)$', callback=round_stats, pass_user_data=True)],
+            ROUND_NUMBER: [RegexHandler(pattern='^\d+$', callback=round_number, pass_user_data=True)],
         },
 
         fallbacks=[CommandHandler('cancel', cancel)]
