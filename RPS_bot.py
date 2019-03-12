@@ -131,7 +131,7 @@ def error(bot, update):
 
 def main():
     # Create the Updater and pass it your bot's token.
-    bot = Bot(token="1652589338:0f8c34cd08e81d3604f23f712a095f167dfc37d8",
+    bot = Bot(token="Token",
               base_url="https://tapi.bale.ai/",
               base_file_url="https://tapi.bale.ai/file/")
     updater = Updater(bot=bot)
