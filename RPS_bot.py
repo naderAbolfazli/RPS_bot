@@ -25,22 +25,27 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger()
 
-ROUND_STATS = range(1)
+ROUND_STATS, ROUND_NUMBER = range(2)
 
-# waited_players = []
+# waited_players = {}
 round = 0
+number_of_rounds = 5
+user_win = 0
+bot_win = 0
 
 
 def start(bot: Bot, update):
-    update.message.reply_text("welcome to rps.")
+    update.message.reply_text("welcome to rps.\nwhat number of rounds do you want to play")
     # if waited_players.__len__():
-    return start_round(bot, update)
+    return ROUND_NUMBER
     # else:
-    # wait_for_player(update.message.chat_id)
+    #     waited_players[update.message.chat_id] = (bot, update)
 
 
-# def wait_for_player(chat_id):
-#     waited_players.append(chat_id)
+def round_number(bot, update):
+    global number_of_rounds
+    number_of_rounds = int(update.message.text)
+    return start_round(bot, update)
 
 
 def start_round(bot, update):
@@ -79,13 +84,37 @@ def get_win_or_lose(r_stat):
     }[r_stat]
 
 
+def r_stat_calculation(r_stat):
+    global user_win, bot_win
+    if r_stat == 1:
+        user_win += 1
+    if r_stat == -1:
+        bot_win += 1
+
+
 def round_stats(bot, update):
+    if round == number_of_rounds:
+        return game_stats(bot, update)
     player_choice = update.message.text
     bot_choice = get_bot_random_choose()
     r_stat = round_judgment(player_choice, bot_choice)
+    r_stat_calculation(r_stat)
     logger.info("waiting for next round")
-    update.message.reply_text('bot selected *{}*\n you {} round {}'.format(bot_choice, get_win_or_lose(r_stat), round))
+    update.message.reply_text('bot selected *{}*\n you *{}* round {}  '.format(bot_choice, get_win_or_lose(r_stat), round))
     start_round(bot, update)
+
+
+def game_stats(bot, update):
+    result = "Tie"
+    if user_win > bot_win:
+        result = "WIN"
+    elif user_win < bot_win:
+        result = "LOSE"
+    elif user_win == bot_win:
+        result = "TIE"
+
+    update.message.reply_text('You *{}*'.format(result))
+    return ConversationHandler.END
 
 
 def cancel(bot, update):
@@ -117,6 +146,7 @@ def main():
 
         states={
             ROUND_STATS: [RegexHandler(pattern='^(Rock|Paper|Scissor)$', callback=round_stats)],
+            ROUND_NUMBER: [RegexHandler(pattern='^\d+$', callback=round_number)],
         },
 
         fallbacks=[CommandHandler('cancel', cancel)]
